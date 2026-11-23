@@ -101,16 +101,6 @@
   .pad .plus.go { animation: pop .45s ease-out; }
   @keyframes pop { 0% { opacity: 1; transform: translateY(-60%); } 100% { opacity: 0; transform: translateY(-150%); } }
 
-  .minis { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; margin-top: 10px; height: 76px; }
-  .mini {
-    border-radius: 14px; background: #2c2924; color: var(--cream); font-weight: 700; font-size: 15px;
-    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px;
-    transition: transform .06s, filter .06s;
-  }
-  .mini:active, .mini.hit { transform: scale(.97); filter: brightness(1.4); }
-  .mini span { font: 700 20px/1 ui-monospace, Menlo, Consolas, monospace; color: var(--brass); }
-  .mini.undo { color: #e6b3aa; }
-  .mini.undo span { color: #e6b3aa; font-size: 13px; font-family: inherit; font-weight: 500; }
   .toast {
     position: fixed; left: 50%; top: calc(64px + var(--safe-t)); transform: translateX(-50%);
     background: var(--cream); color: var(--black); padding: 8px 14px; border-radius: 999px;
@@ -190,7 +180,7 @@
         <li><b>Soir, 17h–19h30</b> : le yoga après le travail</li>
         <li><b>Week-end, 10h–13h</b> : les vinyles et le brunch</li>
       </ul>
-      <div class="hint">Au moins 2 sessions de 15 min par créneau et par local, sur des jours différents. Une personne = un appui. <b>Cible</b> : quelqu'un qui pourrait être client. <b>Vitrine</b> : quelqu'un qui ralentit ou regarde le local.</div>
+      <div class="hint">Au moins 2 sessions de 15 min par créneau et par local, sur des jours différents. Une personne ou une voiture = un appui.</div>
     </div>
   </section>
 
@@ -230,13 +220,8 @@
   </div>
   <div class="pads">
     <button class="pad mine" data-k="mine"><div class="lbl">Mon trottoir<small>piéton côté local</small></div><div class="n">0</div><div class="plus">+1</div></button>
-    <button class="pad opp"  data-k="opp"><div class="lbl">En face<small>piéton trottoir d'en face</small></div><div class="n">0</div><div class="plus">+1</div></button>
     <button class="pad car"  data-k="car"><div class="lbl">Voiture<small>tous sens</small></div><div class="n">0</div><div class="plus">+1</div></button>
-  </div>
-  <div class="minis">
-    <button class="mini" data-k="target">Cible<span>0</span></button>
-    <button class="mini" data-k="window">Vitrine<span>0</span></button>
-    <button class="mini undo" id="btn-undo">↶ Annuler<span id="undo-what">—</span></button>
+    <button class="pad opp"  data-k="opp"><div class="lbl">En face<small>piéton trottoir d'en face</small></div><div class="n">0</div><div class="plus">+1</div></button>
   </div>
 </div>
 <div class="toast" id="toast"></div>
@@ -389,9 +374,6 @@
     const s = current(); if (!s) return;
     const c = counts(s);
     $$('.pad').forEach(p => { p.querySelector('.n').textContent = c[p.dataset.k]; });
-    $$('.mini[data-k]').forEach(p => { p.querySelector('span').textContent = c[p.dataset.k]; });
-    const last = s.taps[s.taps.length - 1];
-    $('#undo-what').textContent = last ? KINDS[last.k].label : '—';
   }
   function flash(el) {
     el.classList.remove('hit'); void el.offsetWidth; el.classList.add('hit');
@@ -410,16 +392,10 @@
     el.addEventListener('pointerdown', e => { e.preventDefault(); tap(el.dataset.k, el); });
     el.addEventListener('contextmenu', e => e.preventDefault());
   });
-  $('#btn-undo').addEventListener('pointerdown', e => {
-    e.preventDefault();
-    const s = current(); if (!s || !s.taps.length) return;
-    const t = s.taps.pop(); save(); vib([20, 40, 20]); flash($('#btn-undo')); refreshCounts();
-    toast(`Annulé : ${KINDS[t.k].label}`);
-  });
   $('#btn-stop').addEventListener('click', () => {
     const s = current(); if (!s) return;
     const c = counts(s), total = c.mine + c.opp + c.car;
-    if (!confirm(`Terminer la session ?\n\nMon trottoir : ${c.mine}\nEn face : ${c.opp}\nVoitures : ${c.car}\nCible : ${c.target} · Vitrine : ${c.window}`)) return;
+    if (!confirm(`Terminer la session ?\n\nMon trottoir : ${c.mine}\nEn face : ${c.opp}\nVoitures : ${c.car}`)) return;
     s.end = Date.now(); db.current = null;
     if (!total && !s.taps.length && !confirm('Aucun passage compté. Garder quand même la session ?')) {
       db.sessions = db.sessions.filter(x => x.id !== s.id);
@@ -458,29 +434,29 @@
     // comparaison des locaux, tous créneaux confondus
     const ids = [...new Set(all.map(s => s.localId))];
     html += `<div class="card"><h2>Comparaison</h2><div class="tbl-wrap"><table>
-      <tr><th>Local</th><th>Trott.</th><th>Face</th><th>Voit.</th><th>Cible</th><th>Vitr.</th><th>Min</th></tr>`;
+      <tr><th>Local</th><th>Trott.</th><th>Face</th><th>Voit.</th><th>Min</th></tr>`;
     ids.forEach(id => {
       const a = aggregate(all.filter(s => s.localId === id));
-      html += `<tr><td class="loc">${esc(localName(id))}</td><td class="k">${r0(a.rate('mine'))}</td><td>${r0(a.rate('opp'))}</td><td>${r0(a.rate('car'))}</td><td>${pct(a.pctTarget)}</td><td>${pct(a.pctWindow)}</td><td>${r0(a.min)}</td></tr>`;
+      html += `<tr><td class="loc">${esc(localName(id))}</td><td class="k">${r0(a.rate('mine'))}</td><td>${r0(a.rate('opp'))}</td><td>${r0(a.rate('car'))}</td><td>${r0(a.min)}</td></tr>`;
     });
-    html += `</table></div><div class="legend">Trott. (mon trottoir), Face (en face), Voit. (voitures) : passages <b>par heure</b>, ramenés depuis les minutes comptées. Cible : % des piétons des 2 trottoirs. Vitr. : % des piétons de mon trottoir. Min : minutes comptées au total.</div></div>`;
+    html += `</table></div><div class="legend">Trott. (mon trottoir), Face (en face), Voit. (voitures) : passages <b>par heure</b>, ramenés depuis les minutes comptées. Min : minutes comptées au total.</div></div>`;
 
     // détail par local et par créneau
     ids.forEach(id => {
       const ss = all.filter(s => s.localId === id);
       html += `<div class="card res-local"><h2>${esc(localName(id))}</h2><div class="tbl-wrap"><table>
-        <tr><th>Créneau</th><th>Trott.</th><th>Face</th><th>Voit.</th><th>Cible</th><th>Vitr.</th><th>Sess.</th></tr>`;
+        <tr><th>Créneau</th><th>Trott.</th><th>Face</th><th>Voit.</th><th>Sess.</th></tr>`;
       SLOTS.forEach(sl => {
         const part = ss.filter(s => slotOf(s.start) === sl);
-        if (!part.length) { if (sl !== 'Autre') html += `<tr><td>${sl}</td>${'<td class="dim">–</td>'.repeat(5)}<td class="dim">0</td></tr>`; return; }
+        if (!part.length) { if (sl !== 'Autre') html += `<tr><td>${sl}</td>${'<td class="dim">–</td>'.repeat(3)}<td class="dim">0</td></tr>`; return; }
         const a = aggregate(part);
-        html += `<tr><td>${sl}</td><td class="k">${r0(a.rate('mine'))}</td><td>${r0(a.rate('opp'))}</td><td>${r0(a.rate('car'))}</td><td>${pct(a.pctTarget)}</td><td>${pct(a.pctWindow)}</td><td>${a.n}${a.n < 2 ? ' ⚠️' : ''}</td></tr>`;
+        html += `<tr><td>${sl}</td><td class="k">${r0(a.rate('mine'))}</td><td>${r0(a.rate('opp'))}</td><td>${r0(a.rate('car'))}</td><td>${a.n}${a.n < 2 ? ' ⚠️' : ''}</td></tr>`;
       });
       html += `</table></div><div class="legend">Mêmes colonnes que ci-dessus, par heure. – = pas encore compté. ⚠️ = une seule session : à confirmer un autre jour.</div>`;
       [...ss].sort((x, y) => y.start - x.start).forEach(s => {
         const c = counts(s);
         html += `<div class="sess"><div>${dateFr(s.start)} ${hhmm(s.start)}–${hhmm(s.end)} · <b>${slotOf(s.start)}</b>
-          <div class="meta">${r0(durMin(s))} min · ${esc(s.weather)} · trottoir ${c.mine} · en face ${c.opp} · voitures ${c.car} · cible ${c.target} · vitrine ${c.window}${s.note ? ' · ' + esc(s.note) : ''}</div></div>
+          <div class="meta">${r0(durMin(s))} min · ${esc(s.weather)} · trottoir ${c.mine} · en face ${c.opp} · voitures ${c.car}${s.note ? ' · ' + esc(s.note) : ''}</div></div>
           <button data-del="${s.id}">Supprimer</button></div>`;
       });
       html += `</div>`;
@@ -504,11 +480,11 @@
   const stamp = () => iso(Date.now()).slice(0, 10);
 
   $('#btn-csv-sum').addEventListener('click', () => {
-    const rows = [['local', 'date', 'jour', 'debut', 'fin', 'creneau', 'duree_min', 'meteo', 'mon_trottoir', 'en_face', 'voitures', 'cible', 'vitrine', 'mon_trottoir_h', 'en_face_h', 'voitures_h', 'note']];
+    const rows = [['local', 'date', 'jour', 'debut', 'fin', 'creneau', 'duree_min', 'meteo', 'mon_trottoir', 'en_face', 'voitures','mon_trottoir_h', 'en_face_h', 'voitures_h', 'note']];
     done().forEach(s => {
       const c = counts(s), m = durMin(s), h = m / 60;
       rows.push([localName(s.localId), iso(s.start).slice(0, 10), DAYS[new Date(s.start).getDay()], hhmm(s.start), hhmm(s.end), slotOf(s.start), m.toFixed(1).replace('.', ','), s.weather,
-        c.mine, c.opp, c.car, c.target, c.window, Math.round(c.mine / h), Math.round(c.opp / h), Math.round(c.car / h), s.note]);
+        c.mine, c.opp, c.car,Math.round(c.mine / h), Math.round(c.opp / h), Math.round(c.car / h), s.note]);
     });
     download(`comptage-resume-${stamp()}.csv`, csv(rows), 'text/csv;charset=utf-8');
   });
