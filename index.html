@@ -1,0 +1,569 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#1A1815">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>NOS/NOS · Comptage</title>
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icon-192.png">
+<style>
+  :root {
+    --black: #1A1815; --cream: #F5F0E8; --brass: #C4963C; --oak: #B8956A;
+    --sage: #7A8C7E; --concrete: #9A9590; --line: #E2DBCF; --red: #A4493D;
+    --safe-b: env(safe-area-inset-bottom, 0px); --safe-t: env(safe-area-inset-top, 0px);
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { margin: 0; height: 100%; }
+  body {
+    font: 16px/1.4 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    background: var(--cream); color: var(--black);
+    touch-action: manipulation; -webkit-user-select: none; user-select: none;
+  }
+  input, select, textarea { -webkit-user-select: text; user-select: text; }
+  h1, h2 { font-family: "Cormorant Garamond", Georgia, serif; font-weight: 600; margin: 0; }
+  button { font: inherit; color: inherit; border: 0; cursor: pointer; }
+  .hidden { display: none !important; }
+
+  /* ---------- en-tête et onglets ---------- */
+  header.top {
+    padding: calc(12px + var(--safe-t)) 16px 0; background: var(--black); color: var(--cream);
+  }
+  header.top h1 { font-size: 24px; letter-spacing: .5px; }
+  header.top h1 span { color: var(--brass); }
+  nav.tabs { display: flex; gap: 4px; margin-top: 10px; }
+  nav.tabs button {
+    flex: 1; padding: 10px 0; background: transparent; color: var(--concrete);
+    border-bottom: 3px solid transparent; font-weight: 600;
+  }
+  nav.tabs button.on { color: var(--cream); border-color: var(--brass); }
+  main { padding: 16px; padding-bottom: calc(24px + var(--safe-b)); max-width: 720px; margin: 0 auto; }
+
+  /* ---------- formulaires ---------- */
+  label.f { display: block; font-size: 13px; font-weight: 600; color: #5c574f; margin: 14px 0 6px; }
+  select, input[type=text], textarea {
+    width: 100%; padding: 12px; font-size: 16px; border: 1px solid var(--line);
+    border-radius: 10px; background: #fff; color: var(--black);
+  }
+  textarea { min-height: 60px; resize: vertical; }
+  .chips { display: flex; flex-wrap: wrap; gap: 8px; }
+  .chips button {
+    padding: 10px 14px; border-radius: 999px; background: #fff; border: 1px solid var(--line);
+  }
+  .chips button.on { background: var(--black); color: var(--cream); border-color: var(--black); }
+  .btn-main {
+    display: block; width: 100%; margin-top: 22px; padding: 18px; border-radius: 14px;
+    background: var(--brass); color: var(--black); font-size: 18px; font-weight: 700;
+  }
+  .btn-sec {
+    padding: 10px 14px; border-radius: 10px; background: #fff; border: 1px solid var(--line); font-weight: 600;
+  }
+  .hint { font-size: 13px; color: #6d675e; margin-top: 8px; }
+  .card { background: #fff; border: 1px solid var(--line); border-radius: 14px; padding: 14px; margin-top: 14px; }
+  .proto { font-size: 14px; }
+  .proto b { color: var(--black); }
+  .proto ul { margin: 6px 0 0; padding-left: 18px; }
+
+  /* ---------- écran de comptage ---------- */
+  #counter {
+    position: fixed; inset: 0; background: var(--black); color: var(--cream);
+    display: flex; flex-direction: column; z-index: 10;
+    padding: calc(10px + var(--safe-t)) 10px calc(10px + var(--safe-b));
+  }
+  .c-head { display: flex; align-items: center; gap: 10px; padding: 0 4px 10px; }
+  .c-head .where { flex: 1; min-width: 0; }
+  .c-head .where b { display: block; font-size: 15px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .c-head .where small { display: block; color: var(--concrete); font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .timer { font: 700 30px/1 ui-monospace, "SF Mono", Menlo, Consolas, monospace; color: var(--brass); }
+  .timer.over { color: #E7B866; animation: blink 1s steps(2) infinite; }
+  @keyframes blink { 50% { opacity: .45; } }
+  .btn-stop { padding: 10px 12px; border-radius: 10px; background: #2c2924; color: var(--cream); font-weight: 700; font-size: 14px; }
+
+  .pads { flex: 1; display: grid; grid-template-rows: 1fr 1fr 1fr; gap: 10px; min-height: 0; }
+  .pad {
+    position: relative; border-radius: 18px; display: flex; align-items: center; justify-content: space-between;
+    padding: 0 22px; text-align: left; transition: transform .06s, filter .06s; overflow: hidden;
+  }
+  .pad:active, .pad.hit { transform: scale(.985); filter: brightness(1.25); }
+  .pad .lbl { font-size: 22px; font-weight: 700; line-height: 1.1; }
+  .pad .lbl small { display: block; font-size: 13px; font-weight: 500; opacity: .75; margin-top: 4px; }
+  .pad .n { font: 700 54px/1 ui-monospace, "SF Mono", Menlo, Consolas, monospace; }
+  .pad.mine { background: var(--brass); color: var(--black); }
+  .pad.opp  { background: var(--sage); color: #fff; }
+  .pad.car  { background: #4a463f; color: var(--cream); }
+  .pad .plus {
+    position: absolute; right: 22px; top: 50%; font-weight: 800; font-size: 26px; opacity: 0;
+    pointer-events: none;
+  }
+  .pad .plus.go { animation: pop .45s ease-out; }
+  @keyframes pop { 0% { opacity: 1; transform: translateY(-60%); } 100% { opacity: 0; transform: translateY(-150%); } }
+
+  .minis { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; margin-top: 10px; height: 76px; }
+  .mini {
+    border-radius: 14px; background: #2c2924; color: var(--cream); font-weight: 700; font-size: 15px;
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px;
+    transition: transform .06s, filter .06s;
+  }
+  .mini:active, .mini.hit { transform: scale(.97); filter: brightness(1.4); }
+  .mini span { font: 700 20px/1 ui-monospace, Menlo, Consolas, monospace; color: var(--brass); }
+  .mini.undo { color: #e6b3aa; }
+  .mini.undo span { color: #e6b3aa; font-size: 13px; font-family: inherit; font-weight: 500; }
+  .toast {
+    position: fixed; left: 50%; top: calc(64px + var(--safe-t)); transform: translateX(-50%);
+    background: var(--cream); color: var(--black); padding: 8px 14px; border-radius: 999px;
+    font-size: 14px; font-weight: 600; z-index: 20; opacity: 0; transition: opacity .2s; pointer-events: none;
+  }
+  .toast.on { opacity: 1; }
+
+  /* ---------- résultats ---------- */
+  .res-local h2 { font-size: 20px; line-height: 1.2; }
+  .tbl-wrap { overflow-x: auto; margin-top: 8px; }
+  table { border-collapse: collapse; width: 100%; font-size: 14px; }
+  th, td { padding: 8px 4px; text-align: right; border-bottom: 1px solid var(--line); white-space: nowrap; }
+  th:first-child, td:first-child { text-align: left; white-space: normal; }
+  td.loc { font-size: 13px; line-height: 1.25; padding-right: 8px; }
+  th { font-size: 12px; color: #6d675e; font-weight: 600; }
+  td.k { font-weight: 700; }
+  td.dim { color: #a19a8f; }
+  .legend { font-size: 12px; color: #6d675e; margin-top: 8px; }
+  .sess { display: flex; justify-content: space-between; gap: 10px; padding: 10px 0; border-bottom: 1px solid var(--line); font-size: 14px; }
+  .sess:last-child { border-bottom: 0; }
+  .sess .meta { color: #6d675e; font-size: 12px; }
+  .sess button { background: none; color: var(--red); font-size: 13px; padding: 4px; }
+  .row { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
+  .empty { text-align: center; color: #6d675e; padding: 30px 10px; }
+  .loc-item { display: flex; align-items: center; gap: 8px; padding: 8px 0; border-bottom: 1px solid var(--line); }
+  .loc-item:last-child { border-bottom: 0; }
+  .loc-item span { flex: 1; }
+  .loc-item button { background: none; color: var(--red); font-size: 13px; }
+</style>
+</head>
+<body>
+
+<header class="top">
+  <h1>NOS<span>/</span>NOS · Comptage</h1>
+  <nav class="tabs">
+    <button data-tab="start" class="on">Compter</button>
+    <button data-tab="results">Résultats</button>
+    <button data-tab="locals">Locaux</button>
+  </nav>
+</header>
+
+<main>
+  <!-- ======== démarrer une session ======== -->
+  <section id="tab-start">
+    <label class="f" for="sel-local">Local</label>
+    <select id="sel-local"></select>
+
+    <label class="f">Durée</label>
+    <div class="chips" id="chips-dur">
+      <button data-v="5">5 min</button>
+      <button data-v="10">10 min</button>
+      <button data-v="15" class="on">15 min</button>
+      <button data-v="30">30 min</button>
+      <button data-v="0">Libre</button>
+    </div>
+
+    <label class="f">Météo</label>
+    <div class="chips" id="chips-wx">
+      <button data-v="soleil">☀️ Soleil</button>
+      <button data-v="nuageux" class="on">☁️ Nuageux</button>
+      <button data-v="pluie">🌧️ Pluie</button>
+      <button data-v="neige">❄️ Neige</button>
+      <button data-v="froid">🥶 Froid sec</button>
+    </div>
+
+    <label class="f" for="in-note">Note (facultatif)</label>
+    <input type="text" id="in-note" placeholder="Travaux, marché, événement…">
+
+    <button class="btn-main" id="btn-start">Démarrer le comptage</button>
+    <div class="hint" id="slot-hint"></div>
+
+    <div class="card proto">
+      <b>Protocole</b>
+      <ul>
+        <li><b>Matin, 7h30–9h30</b> : le café avant le travail</li>
+        <li><b>Midi, 12h–14h</b> : la pause déjeuner</li>
+        <li><b>Soir, 17h–19h30</b> : le yoga après le travail</li>
+        <li><b>Week-end, 10h–13h</b> : les vinyles et le brunch</li>
+      </ul>
+      <div class="hint">Au moins 2 sessions de 15 min par créneau et par local, sur des jours différents. Une personne = un appui. <b>Cible</b> : quelqu'un qui pourrait être client. <b>Vitrine</b> : quelqu'un qui ralentit ou regarde le local.</div>
+    </div>
+  </section>
+
+  <!-- ======== résultats ======== -->
+  <section id="tab-results" class="hidden">
+    <div id="results"></div>
+    <div class="card">
+      <b>Exporter</b>
+      <div class="row">
+        <button class="btn-sec" id="btn-csv-sum">CSV résumé</button>
+        <button class="btn-sec" id="btn-csv-taps">CSV détaillé</button>
+        <button class="btn-sec" id="btn-json">Sauvegarde</button>
+        <button class="btn-sec" id="btn-import">Restaurer</button>
+        <input type="file" id="in-import" accept=".json,application/json" class="hidden">
+      </div>
+      <div class="hint">Les données restent sur ce téléphone. Fais une sauvegarde de temps en temps : elles disparaissent si tu vides les données du navigateur.</div>
+    </div>
+  </section>
+
+  <!-- ======== locaux ======== -->
+  <section id="tab-locals" class="hidden">
+    <div class="card" style="margin-top:0">
+      <div id="loc-list"></div>
+      <label class="f" for="in-loc">Ajouter un local</label>
+      <input type="text" id="in-loc" placeholder="Adresse ou nom du local">
+      <button class="btn-main" id="btn-add-loc" style="margin-top:12px">Ajouter</button>
+    </div>
+  </section>
+</main>
+
+<!-- ======== écran de comptage plein écran ======== -->
+<div id="counter" class="hidden">
+  <div class="c-head">
+    <div class="where"><b id="c-local"></b><small id="c-meta"></small></div>
+    <div class="timer" id="c-timer">15:00</div>
+    <button class="btn-stop" id="btn-stop">Terminer</button>
+  </div>
+  <div class="pads">
+    <button class="pad mine" data-k="mine"><div class="lbl">Mon trottoir<small>piéton côté local</small></div><div class="n">0</div><div class="plus">+1</div></button>
+    <button class="pad opp"  data-k="opp"><div class="lbl">En face<small>piéton trottoir d'en face</small></div><div class="n">0</div><div class="plus">+1</div></button>
+    <button class="pad car"  data-k="car"><div class="lbl">Voiture<small>tous sens</small></div><div class="n">0</div><div class="plus">+1</div></button>
+  </div>
+  <div class="minis">
+    <button class="mini" data-k="target">Cible<span>0</span></button>
+    <button class="mini" data-k="window">Vitrine<span>0</span></button>
+    <button class="mini undo" id="btn-undo">↶ Annuler<span id="undo-what">—</span></button>
+  </div>
+</div>
+<div class="toast" id="toast"></div>
+
+<script>
+(() => {
+  'use strict';
+  const KEY = 'nosnos-comptage-v1';
+  const KINDS = {
+    mine:   { label: 'Mon trottoir', short: 'Mon trottoir' },
+    opp:    { label: 'En face',      short: 'En face' },
+    car:    { label: 'Voiture',      short: 'Voitures' },
+    target: { label: 'Cible',        short: 'Cible' },
+    window: { label: 'Vitrine',      short: 'Vitrine' },
+  };
+  const SLOTS = ['Matin', 'Midi', 'Soir', 'Week-end', 'Autre'];
+  const DEFAULT_LOCALS = ['Al. Jerozolimskie 93 (Nowogrodzka Square)', 'Nowogrodzka 21', 'Wilcza 9A', 'Rydygiera 12 (U13)', 'Ogrodowa (LU3)'];
+
+  const $ = s => document.querySelector(s);
+  const $$ = s => [...document.querySelectorAll(s)];
+  const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+
+  // ---------- stockage ----------
+  function load() {
+    try {
+      const d = JSON.parse(localStorage.getItem(KEY));
+      if (d && Array.isArray(d.locals) && Array.isArray(d.sessions)) return d;
+    } catch (e) {}
+    return {
+      locals: DEFAULT_LOCALS.map(name => ({ id: uid(), name })),
+      sessions: [], current: null,
+      prefs: { dur: 15, wx: 'nuageux', localId: null },
+    };
+  }
+  let db = load();
+  db.prefs = db.prefs || { dur: 15, wx: 'nuageux', localId: null };
+  const save = () => localStorage.setItem(KEY, JSON.stringify(db));
+  const localName = id => (db.locals.find(l => l.id === id) || { name: '(local supprimé)' }).name;
+  const current = () => db.sessions.find(s => s.id === db.current) || null;
+
+  // ---------- créneau ----------
+  function slotOf(ts) {
+    const d = new Date(ts), day = d.getDay(), m = d.getHours() * 60 + d.getMinutes();
+    if (day === 0 || day === 6) return 'Week-end';
+    if (m >= 7 * 60 && m < 10 * 60 + 30) return 'Matin';
+    if (m >= 11 * 60 + 30 && m < 14 * 60 + 30) return 'Midi';
+    if (m >= 16 * 60 + 30 && m < 20 * 60) return 'Soir';
+    return 'Autre';
+  }
+  const DAYS = ['dim.', 'lun.', 'mar.', 'mer.', 'jeu.', 'ven.', 'sam.'];
+  const hhmm = ts => new Date(ts).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+  const dateFr = ts => { const d = new Date(ts); return `${DAYS[d.getDay()]} ${d.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit' })}`; };
+
+  // ---------- onglets ----------
+  function showTab(t) {
+    $$('nav.tabs button').forEach(b => b.classList.toggle('on', b.dataset.tab === t));
+    ['start', 'results', 'locals'].forEach(x => $('#tab-' + x).classList.toggle('hidden', x !== t));
+    if (t === 'results') renderResults();
+    if (t === 'locals') renderLocals();
+    if (t === 'start') renderStart();
+  }
+  $$('nav.tabs button').forEach(b => b.addEventListener('click', () => showTab(b.dataset.tab)));
+
+  // ---------- démarrage ----------
+  function chips(sel, key) {
+    $$(sel + ' button').forEach(b => {
+      b.classList.toggle('on', String(db.prefs[key]) === b.dataset.v);
+      b.onclick = () => { db.prefs[key] = key === 'dur' ? +b.dataset.v : b.dataset.v; save(); chips(sel, key); };
+    });
+  }
+  function renderStart() {
+    const sel = $('#sel-local');
+    sel.innerHTML = db.locals.map(l => `<option value="${l.id}">${esc(l.name)}</option>`).join('');
+    if (db.prefs.localId && db.locals.some(l => l.id === db.prefs.localId)) sel.value = db.prefs.localId;
+    chips('#chips-dur', 'dur'); chips('#chips-wx', 'wx');
+    const now = Date.now();
+    $('#slot-hint').textContent = `Créneau maintenant : ${slotOf(now)} (${dateFr(now)}, ${hhmm(now)})`;
+    $('#btn-start').disabled = !db.locals.length;
+  }
+  $('#sel-local').addEventListener('change', e => { db.prefs.localId = e.target.value; save(); });
+  $('#btn-start').addEventListener('click', () => {
+    const localId = $('#sel-local').value;
+    if (!localId) return;
+    db.prefs.localId = localId;
+    const s = {
+      id: uid(), localId, start: Date.now(), end: null, plannedMin: db.prefs.dur,
+      weather: db.prefs.wx, note: $('#in-note').value.trim(), taps: [],
+    };
+    db.sessions.push(s); db.current = s.id; save();
+    $('#in-note').value = '';
+    openCounter();
+  });
+
+  // ---------- comptage ----------
+  let tick = null, alarmed = false, wakeLock = null;
+  function openCounter() {
+    const s = current(); if (!s) return;
+    $('#counter').classList.remove('hidden');
+    $('#c-local').textContent = localName(s.localId);
+    $('#c-meta').textContent = `${slotOf(s.start)} · ${dateFr(s.start)} · début ${hhmm(s.start)} · ${s.weather}`;
+    alarmed = s.plannedMin > 0 && Date.now() - s.start >= s.plannedMin * 60000;
+    refreshCounts(); updateTimer();
+    clearInterval(tick); tick = setInterval(updateTimer, 250);
+    requestWake();
+  }
+  function closeCounter() {
+    $('#counter').classList.add('hidden');
+    clearInterval(tick); tick = null;
+    if (wakeLock) { wakeLock.release().catch(() => {}); wakeLock = null; }
+  }
+  async function requestWake() {
+    try { if ('wakeLock' in navigator && !wakeLock) { wakeLock = await navigator.wakeLock.request('screen'); wakeLock.addEventListener('release', () => { wakeLock = null; }); } } catch (e) {}
+  }
+  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && current()) requestWake(); });
+
+  const fmt = sec => `${Math.floor(sec / 60)}:${String(sec % 60).padStart(2, '0')}`;
+  function updateTimer() {
+    const s = current(); if (!s) return;
+    const el = $('#c-timer'), elapsed = Math.floor((Date.now() - s.start) / 1000);
+    if (!s.plannedMin) { el.textContent = fmt(elapsed); el.classList.remove('over'); return; }
+    const left = s.plannedMin * 60 - elapsed;
+    if (left > 0) { el.textContent = fmt(left); el.classList.remove('over'); }
+    else {
+      el.textContent = '+' + fmt(-left); el.classList.add('over');
+      if (!alarmed) { alarmed = true; alarm(); }
+    }
+  }
+  let actx = null;
+  function beep(freq, t0, dur) {
+    const o = actx.createOscillator(), g = actx.createGain();
+    o.frequency.value = freq; o.connect(g); g.connect(actx.destination);
+    g.gain.setValueAtTime(0.0001, actx.currentTime + t0);
+    g.gain.exponentialRampToValueAtTime(0.4, actx.currentTime + t0 + 0.02);
+    g.gain.exponentialRampToValueAtTime(0.0001, actx.currentTime + t0 + dur);
+    o.start(actx.currentTime + t0); o.stop(actx.currentTime + t0 + dur + 0.05);
+  }
+  function alarm() {
+    vib([300, 150, 300, 150, 500]);
+    try { if (actx) { beep(880, 0, .25); beep(880, .35, .25); beep(1175, .7, .5); } } catch (e) {}
+    toast('Temps écoulé : tu peux terminer');
+  }
+  const vib = p => { try { navigator.vibrate && navigator.vibrate(p); } catch (e) {} };
+
+  function counts(s) {
+    const c = { mine: 0, opp: 0, car: 0, target: 0, window: 0 };
+    s.taps.forEach(t => { if (t.k in c) c[t.k]++; });
+    return c;
+  }
+  function refreshCounts() {
+    const s = current(); if (!s) return;
+    const c = counts(s);
+    $$('.pad').forEach(p => { p.querySelector('.n').textContent = c[p.dataset.k]; });
+    $$('.mini[data-k]').forEach(p => { p.querySelector('span').textContent = c[p.dataset.k]; });
+    const last = s.taps[s.taps.length - 1];
+    $('#undo-what').textContent = last ? KINDS[last.k].label : '—';
+  }
+  function flash(el) {
+    el.classList.remove('hit'); void el.offsetWidth; el.classList.add('hit');
+    setTimeout(() => el.classList.remove('hit'), 90);
+    const p = el.querySelector('.plus');
+    if (p) { p.classList.remove('go'); void p.offsetWidth; p.classList.add('go'); }
+  }
+  function tap(k, el) {
+    const s = current(); if (!s) return;
+    if (!actx) { try { actx = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) {} }
+    s.taps.push({ t: Date.now(), k }); save();
+    vib(12); flash(el); refreshCounts();
+  }
+  // pointerdown = réaction immédiate, sans le délai du clic
+  $$('#counter [data-k]').forEach(el => {
+    el.addEventListener('pointerdown', e => { e.preventDefault(); tap(el.dataset.k, el); });
+    el.addEventListener('contextmenu', e => e.preventDefault());
+  });
+  $('#btn-undo').addEventListener('pointerdown', e => {
+    e.preventDefault();
+    const s = current(); if (!s || !s.taps.length) return;
+    const t = s.taps.pop(); save(); vib([20, 40, 20]); flash($('#btn-undo')); refreshCounts();
+    toast(`Annulé : ${KINDS[t.k].label}`);
+  });
+  $('#btn-stop').addEventListener('click', () => {
+    const s = current(); if (!s) return;
+    const c = counts(s), total = c.mine + c.opp + c.car;
+    if (!confirm(`Terminer la session ?\n\nMon trottoir : ${c.mine}\nEn face : ${c.opp}\nVoitures : ${c.car}\nCible : ${c.target} · Vitrine : ${c.window}`)) return;
+    s.end = Date.now(); db.current = null;
+    if (!total && !s.taps.length && !confirm('Aucun passage compté. Garder quand même la session ?')) {
+      db.sessions = db.sessions.filter(x => x.id !== s.id);
+    }
+    save(); closeCounter(); showTab('results');
+  });
+
+  let toastT = null;
+  function toast(msg) {
+    const t = $('#toast'); t.textContent = msg; t.classList.add('on');
+    clearTimeout(toastT); toastT = setTimeout(() => t.classList.remove('on'), 1600);
+  }
+
+  // ---------- résultats ----------
+  const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  const durMin = s => Math.max((s.end - s.start) / 60000, 0.5);
+  const done = () => db.sessions.filter(s => s.end);
+
+  function aggregate(sessions) {
+    const a = { n: sessions.length, min: 0, mine: 0, opp: 0, car: 0, target: 0, window: 0 };
+    sessions.forEach(s => { a.min += durMin(s); const c = counts(s); for (const k in c) a[k] += c[k]; });
+    const h = a.min / 60;
+    a.rate = k => h ? a[k] / h : 0;
+    a.pctTarget = (a.mine + a.opp) ? a.target / (a.mine + a.opp) * 100 : null;
+    a.pctWindow = a.mine ? a.window / a.mine * 100 : null;
+    return a;
+  }
+  const r0 = x => Math.round(x).toLocaleString('fr-FR');
+  const pct = x => x == null ? '–' : Math.round(x) + ' %';
+
+  function renderResults() {
+    const all = done(), box = $('#results');
+    if (!all.length) { box.innerHTML = '<div class="empty">Aucune session terminée pour l\'instant.<br>Lance un comptage depuis l\'onglet « Compter ».</div>'; return; }
+    let html = '';
+
+    // comparaison des locaux, tous créneaux confondus
+    const ids = [...new Set(all.map(s => s.localId))];
+    html += `<div class="card"><h2>Comparaison</h2><div class="tbl-wrap"><table>
+      <tr><th>Local</th><th>Trott.</th><th>Face</th><th>Voit.</th><th>Cible</th><th>Vitr.</th><th>Min</th></tr>`;
+    ids.forEach(id => {
+      const a = aggregate(all.filter(s => s.localId === id));
+      html += `<tr><td class="loc">${esc(localName(id))}</td><td class="k">${r0(a.rate('mine'))}</td><td>${r0(a.rate('opp'))}</td><td>${r0(a.rate('car'))}</td><td>${pct(a.pctTarget)}</td><td>${pct(a.pctWindow)}</td><td>${r0(a.min)}</td></tr>`;
+    });
+    html += `</table></div><div class="legend">Trott. (mon trottoir), Face (en face), Voit. (voitures) : passages <b>par heure</b>, ramenés depuis les minutes comptées. Cible : % des piétons des 2 trottoirs. Vitr. : % des piétons de mon trottoir. Min : minutes comptées au total.</div></div>`;
+
+    // détail par local et par créneau
+    ids.forEach(id => {
+      const ss = all.filter(s => s.localId === id);
+      html += `<div class="card res-local"><h2>${esc(localName(id))}</h2><div class="tbl-wrap"><table>
+        <tr><th>Créneau</th><th>Trott.</th><th>Face</th><th>Voit.</th><th>Cible</th><th>Vitr.</th><th>Sess.</th></tr>`;
+      SLOTS.forEach(sl => {
+        const part = ss.filter(s => slotOf(s.start) === sl);
+        if (!part.length) { if (sl !== 'Autre') html += `<tr><td>${sl}</td>${'<td class="dim">–</td>'.repeat(5)}<td class="dim">0</td></tr>`; return; }
+        const a = aggregate(part);
+        html += `<tr><td>${sl}</td><td class="k">${r0(a.rate('mine'))}</td><td>${r0(a.rate('opp'))}</td><td>${r0(a.rate('car'))}</td><td>${pct(a.pctTarget)}</td><td>${pct(a.pctWindow)}</td><td>${a.n}${a.n < 2 ? ' ⚠️' : ''}</td></tr>`;
+      });
+      html += `</table></div><div class="legend">Mêmes colonnes que ci-dessus, par heure. – = pas encore compté. ⚠️ = une seule session : à confirmer un autre jour.</div>`;
+      [...ss].sort((x, y) => y.start - x.start).forEach(s => {
+        const c = counts(s);
+        html += `<div class="sess"><div>${dateFr(s.start)} ${hhmm(s.start)}–${hhmm(s.end)} · <b>${slotOf(s.start)}</b>
+          <div class="meta">${r0(durMin(s))} min · ${esc(s.weather)} · trottoir ${c.mine} · en face ${c.opp} · voitures ${c.car} · cible ${c.target} · vitrine ${c.window}${s.note ? ' · ' + esc(s.note) : ''}</div></div>
+          <button data-del="${s.id}">Supprimer</button></div>`;
+      });
+      html += `</div>`;
+    });
+    box.innerHTML = html;
+    box.querySelectorAll('[data-del]').forEach(b => b.addEventListener('click', () => {
+      if (!confirm('Supprimer cette session ?')) return;
+      db.sessions = db.sessions.filter(s => s.id !== b.dataset.del); save(); renderResults();
+    }));
+  }
+
+  // ---------- exports ----------
+  function download(name, text, type) {
+    const blob = new Blob([text], { type }), a = document.createElement('a');
+    a.href = URL.createObjectURL(blob); a.download = name; document.body.appendChild(a); a.click();
+    setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
+  }
+  const csvCell = v => { const s = String(v ?? ''); return /[;"\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; };
+  const csv = rows => '﻿' + rows.map(r => r.map(csvCell).join(';')).join('\r\n');
+  const iso = ts => { const d = new Date(ts), p = n => String(n).padStart(2, '0'); return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`; };
+  const stamp = () => iso(Date.now()).slice(0, 10);
+
+  $('#btn-csv-sum').addEventListener('click', () => {
+    const rows = [['local', 'date', 'jour', 'debut', 'fin', 'creneau', 'duree_min', 'meteo', 'mon_trottoir', 'en_face', 'voitures', 'cible', 'vitrine', 'mon_trottoir_h', 'en_face_h', 'voitures_h', 'note']];
+    done().forEach(s => {
+      const c = counts(s), m = durMin(s), h = m / 60;
+      rows.push([localName(s.localId), iso(s.start).slice(0, 10), DAYS[new Date(s.start).getDay()], hhmm(s.start), hhmm(s.end), slotOf(s.start), m.toFixed(1).replace('.', ','), s.weather,
+        c.mine, c.opp, c.car, c.target, c.window, Math.round(c.mine / h), Math.round(c.opp / h), Math.round(c.car / h), s.note]);
+    });
+    download(`comptage-resume-${stamp()}.csv`, csv(rows), 'text/csv;charset=utf-8');
+  });
+  $('#btn-csv-taps').addEventListener('click', () => {
+    const rows = [['local', 'session_debut', 'creneau', 'horodatage', 'seconde_depuis_debut', 'type']];
+    done().forEach(s => s.taps.forEach(t => rows.push([localName(s.localId), iso(s.start), slotOf(s.start), iso(t.t), Math.round((t.t - s.start) / 1000), KINDS[t.k].label])));
+    download(`comptage-detail-${stamp()}.csv`, csv(rows), 'text/csv;charset=utf-8');
+  });
+  $('#btn-json').addEventListener('click', () => download(`comptage-sauvegarde-${stamp()}.json`, JSON.stringify(db, null, 1), 'application/json'));
+  $('#btn-import').addEventListener('click', () => $('#in-import').click());
+  $('#in-import').addEventListener('change', async e => {
+    const f = e.target.files[0]; if (!f) return;
+    try {
+      const d = JSON.parse(await f.text());
+      if (!Array.isArray(d.locals) || !Array.isArray(d.sessions)) throw 0;
+      const merge = confirm('Fusionner avec les données actuelles ?\n\nOK = fusionner · Annuler = remplacer');
+      if (merge) {
+        const lid = new Set(db.locals.map(l => l.id)), sid = new Set(db.sessions.map(s => s.id));
+        d.locals.forEach(l => { if (!lid.has(l.id)) db.locals.push(l); });
+        d.sessions.forEach(s => { if (!sid.has(s.id) && s.end) db.sessions.push(s); });
+      } else {
+        if (!confirm('Remplacer toutes les données de ce téléphone ?')) return;
+        db = d; db.current = null; db.prefs = db.prefs || { dur: 15, wx: 'nuageux', localId: null };
+      }
+      save(); renderResults(); toast('Données restaurées');
+    } catch (err) { alert('Fichier illisible : ce n\'est pas une sauvegarde de cet outil.'); }
+    e.target.value = '';
+  });
+
+  // ---------- locaux ----------
+  function renderLocals() {
+    $('#loc-list').innerHTML = db.locals.length ? db.locals.map(l => {
+      const n = db.sessions.filter(s => s.localId === l.id && s.end).length;
+      return `<div class="loc-item"><span>${esc(l.name)} <small style="color:#6d675e">· ${n} session${n > 1 ? 's' : ''}</small></span><button data-rm="${l.id}">Retirer</button></div>`;
+    }).join('') : '<div class="empty">Aucun local.</div>';
+    $$('#loc-list [data-rm]').forEach(b => b.addEventListener('click', () => {
+      const n = db.sessions.filter(s => s.localId === b.dataset.rm).length;
+      if (!confirm(n ? `Retirer ce local et ses ${n} session(s) ?` : 'Retirer ce local ?')) return;
+      db.locals = db.locals.filter(l => l.id !== b.dataset.rm);
+      db.sessions = db.sessions.filter(s => s.localId !== b.dataset.rm);
+      save(); renderLocals();
+    }));
+  }
+  $('#btn-add-loc').addEventListener('click', () => {
+    const v = $('#in-loc').value.trim(); if (!v) return;
+    const l = { id: uid(), name: v }; db.locals.push(l); db.prefs.localId = l.id; save();
+    $('#in-loc').value = ''; renderLocals(); toast('Local ajouté');
+  });
+
+  // ---------- reprise ----------
+  window.addEventListener('beforeunload', e => { if (current()) { e.preventDefault(); e.returnValue = ''; } });
+  renderStart();
+  if (current()) openCounter();   // une session en cours reprend après fermeture ou rechargement
+  if ('serviceWorker' in navigator && location.protocol !== 'file:') navigator.serviceWorker.register('sw.js').catch(() => {});
+})();
+</script>
+</body>
+</html>
